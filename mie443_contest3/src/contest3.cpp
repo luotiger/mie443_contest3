@@ -18,6 +18,9 @@ void bumperCB(const geometry_msgs::Twist msg){
 
 //-------------------------------------------------------------
 
+double angular = 0.0;
+double linear = 0.0;
+
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "image_listener");
@@ -45,8 +48,7 @@ int main(int argc, char **argv)
 
 	int world_state = 0;
 
-	double angular = 0.2;
-	double linear = 0.0;
+	
 
 	geometry_msgs::Twist vel;
 	vel.angular.z = angular;
@@ -68,6 +70,9 @@ int main(int argc, char **argv)
 			...
 			...
 			*/
+			vel.angular.z = angular;
+			vel.linear.x = linear;
+			vel_pub.publish(vel);
 		}
 		secondsElapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now()-start).count();
 		loop_rate.sleep();
