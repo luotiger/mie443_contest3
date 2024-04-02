@@ -2,17 +2,24 @@
 #include <ros/package.h>
 #include <imageTransporter.hpp>
 #include <chrono>
+#include <inttypes.h>
 
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
 
+//State or nav related 
 geometry_msgs::Twist follow_cmd;
 int world_state;
 int prev_state;
 bool state_lockout = false;
+bool obj_detected = false;
 
+//Timer related global vars/structs
 ros::Timer state_timer;
+std::chrono::time_point<std::chrono::system_clock> state_start;
+void set_start_time(); //Start time is set on state change
+uint64_t get_time_elapsed(); //Returns millis since state start
 
 bool enable_show_img = false;
 int key_time = 0;
@@ -27,8 +34,12 @@ Mat img_ref;
 bool matchImage(Mat inp_frame);
 void excited();
 
+
 void followerCB(const geometry_msgs::Twist msg){
     follow_cmd = msg;
+	if (follow_cmd.linear.x == 0 && follow_cmd.angular.z == 0){
+		obj_detected=false;
+	} else obj_detected=true;
 }
 
 void bumperCB(const geometry_msgs::Twist msg){
@@ -65,7 +76,7 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "image_listener");
 	ros::NodeHandle nh;
-	state_timer = nh.createTimer(ros::Duration(5.0), timerCB);
+	state_timer = nh.createTimer(ros::Duration(10.0), timerCB);
 	state_timer.stop();
 	sound_play::SoundClient sc;
 	string path_to_sounds = ros::package::getPath("mie443_contest3") + "/sounds/";
@@ -103,16 +114,22 @@ int main(int argc, char **argv)
 	Mat img_test=imread(ros::package::getPath("mie443_contest3")+"/imgs/imgtest.jpg");
 	imshow_fast(img_test);
 
+	set_start_time();
+
+
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
 		//State evaluation, put the most important states first! timerCB will automatically return to state 0 and reset state_lockout
+		ROS_INFO("Time elapsed: %" PRIu64 "\n", get_time_elapsed());
+		// if (!state_lockout && prev_state==0 && matchImage(rgbTransport.getImg())) {
+		// 	world_state = 4;
+		// 	sc.playWave(path_to_sounds + "excited.wav");
+		// }  
 		
-		//if (matchImage(rgbTransport.getImg())) world_state = 4;
-		if (!state_lockout && matchImage(img_test) && prev_state!=4) world_state = 4; 
-		
-		if (prev_state!=world_state && world_state != 0){
+		if (prev_state != world_state && world_state != 0){
 			state_timer.start();
 			state_lockout=true;
+			set_start_time();
 			ROS_INFO("Starting lockout");
 		}
 		prev_state=world_state;
@@ -133,7 +150,7 @@ int main(int argc, char **argv)
 			vel_pub.publish(vel);
 		} else if (world_state == 4){
 			if (!ranOnce) {
-				sc.playWave(path_to_sounds + "excited.wav");
+				// sc.playWave(path_to_sounds + "excited.wav");
 				ranOnce=true;
 			}
 			excited();
@@ -175,4 +192,13 @@ bool matchImage(Mat inp_frame){
 
 	if (good_matches.size()>50) return true;
 	else return false;
+}
+
+void set_start_time(){
+	state_start = std::chrono::system_clock::now();
+	return;
+}
+uint64_t get_time_elapsed(){
+	uint64_t mil_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-state_start).count();
+	return mil_elapsed;
 }
