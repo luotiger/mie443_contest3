@@ -51,6 +51,7 @@ void timerCB(const ros::TimerEvent& event){
 	world_state = 0;
 	state_lockout = false;
 	ROS_INFO("Releasing lockout");
+	cv::destroyAllWindows();
 }
 
 //-------------------------------------------------------------
