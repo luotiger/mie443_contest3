@@ -53,7 +53,7 @@ void followerCB(const geometry_msgs::Twist msg){
 bool bumperPressed=false;
 
 void bumperCB(const geometry_msgs::Twist msg){
-    bumper[msg->bumper]=msg->world_state;// IDK IF THIS IS RIGHT 
+    bumper[msg->bumper]=msg->state;// IDK IF THIS IS RIGHT 
     
     //if a bumper is pressed the robot enters a corresponding state and function to react
     if (bumper[0]==kobuki_msgs::BumperEvent::PRESSED) {
