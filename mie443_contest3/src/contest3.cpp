@@ -3,12 +3,21 @@
 #include <imageTransporter.hpp>
 #include <chrono>
 #include <inttypes.h>
+#include <std_msgs/Bool.h>
+#include <kobuki_msgs/BumperEvent.h>
+
+//BUMPER
+#define N_BUMPER (3)
+
+//BUMPER 
+//GLOBAL VARIABLE FOR BUMPER 
+uint8_t bumper[3]={kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED};
 
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
 
-//State or nav related
+//State or nav related 
 geometry_msgs::Twist follow_cmd;
 int world_state;
 int prev_state;
@@ -33,18 +42,49 @@ Mat img_ref;
 
 bool matchImage(Mat inp_frame);
 void excited();
-void sadness();
+void rightBumper();
+void leftBumper();
+void rage();
 void fear();
+void turnLeft();
+void turnRight();
+
 
 void followerCB(const geometry_msgs::Twist msg){
     follow_cmd = msg;
-	if (follow_cmd.linear.x == 0 && follow_cmd.angular.z == 0){
-		obj_detected=false;
-	} else obj_detected=true;
+	// if (follow_cmd.linear.x == 0 && follow_cmd.angular.z == 0){
+	// 	obj_detected=false;
+	// } else obj_detected=true;
 }
 
-void bumperCB(const geometry_msgs::Twist msg){
-    //Fill with code
+void centroidCB(const std_msgs::Bool msg){
+	obj_detected=msg.data;
+	// if (!obj_detected) ROS_INFO("Can't see person!");
+	// else ROS_INFO("I see person!");
+}
+
+//BUMPER
+bool bumperPressed=false;
+
+void bumperCB(const kobuki_msgs::BumperEvent::ConstPtr& msg){
+    bumper[msg->bumper]=msg->state;// IDK IF THIS IS RIGHT 
+    
+    //if a bumper is pressed the robot enters a corresponding state and function to react
+    if (bumper[0]==kobuki_msgs::BumperEvent::PRESSED) {
+        world_state = 6;
+        ROS_INFO("Left Bumper Pressed");
+        bumperPressed=true;
+    } else if (bumper[1]==kobuki_msgs::BumperEvent::PRESSED) {
+        world_state = 7;
+        ROS_INFO("Middle Bumper Pressed");
+        bumperPressed=true;
+    } else if (bumper[2]==kobuki_msgs::BumperEvent::PRESSED) {
+        world_state = 8;
+        ROS_INFO("Right Bumper Pressed");
+        bumperPressed=true;
+    } else {
+        bumperPressed=false;
+    }
 }
 
 void timerCB(const ros::TimerEvent& event){
@@ -58,11 +98,12 @@ void timerCB(const ros::TimerEvent& event){
 void imshow_fast(Mat img){
 	if (enable_show_img){
 		imshow("image", img);
-		cv::waitKey(key_time);
+		cv::waitKey(1);
 		cv::destroyAllWindows();
 	}
 	return;
 }
+
 void initAll(){ //Consider doing everything in grayscale it make it faster
 	string path_to_imgref = ros::package::getPath("mie443_contest3") + "/imgs/imgref.jpg";
 	img_ref = imread(path_to_imgref);
@@ -70,6 +111,11 @@ void initAll(){ //Consider doing everything in grayscale it make it faster
 	imshow_fast(img_ref);
 }
 
+// call on this to display images
+void imshow_emotion(Mat img){
+	imshow("image", img);
+	cv::waitKey(1); 
+}
 
 double angular = 0.0;
 double linear = 0.0;
@@ -78,7 +124,7 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "image_listener");
 	ros::NodeHandle nh;
-	state_timer = nh.createTimer(ros::Duration(10.0), timerCB);
+	state_timer = nh.createTimer(ros::Duration(30.0), timerCB);
 	state_timer.stop();
 	sound_play::SoundClient sc;
 	string path_to_sounds = ros::package::getPath("mie443_contest3") + "/sounds/";
@@ -90,6 +136,7 @@ int main(int argc, char **argv)
 	//subscribers
 	ros::Subscriber follower = nh.subscribe("follower_velocity_smoother/smooth_cmd_vel", 10, &followerCB);
 	ros::Subscriber bumper = nh.subscribe("mobile_base/events/bumper", 10, &bumperCB);
+	ros::Subscriber centroid_bool = nh.subscribe("centroid_bool",1,&centroidCB);
 
     // contest count down timer
 	ros::Rate loop_rate(10);
@@ -104,7 +151,7 @@ int main(int argc, char **argv)
 	world_state = 0;
 	prev_state = 0;
 	bool ranOnce=false;
-
+	
 	geometry_msgs::Twist vel;
 	vel.angular.z = angular;
 	vel.linear.x = linear;
@@ -113,52 +160,65 @@ int main(int argc, char **argv)
 
 	//sc.playWave(path_to_sounds + "sound.wav");
 	ros::Duration(0.5).sleep();
-	Mat img_test=imread(ros::package::getPath("mie443_contest3")+"/imgs/imgtest.jpg");
-	imshow_fast(img_test);
+	//Mat img_test=imread(ros::package::getPath("mie443_contest3")+"/imgs/imgtest.jpg");
+	//imshow_fast(img_test);
+	//imshow_emotion(img_test);
 
 	set_start_time();
+
+	int emotionCtr = 0;
+	int centroidCtr=0;
 
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
 		//State evaluation, put the most important states first! timerCB will automatically return to state 0 and reset state_lockout
-		ROS_INFO("Time elapsed: %" PRIu64 "\n", get_time_elapsed());
-		//if (matchImage(rgbTransport.getImg())) world_state = 4;
-		//if (!state_lockout && prev_state==0 && matchImage(rgbTransport.getImg())) {
-		// 	world_state = 4;
-		// 	sc.playWave(path_to_sounds + "excited.wav");
-		// } 
-
+		//ROS_INFO("Time elapsed: %" PRIu64 "\n", get_time_elapsed());
 		
-		if (prev_state!=world_state && world_state != 0){
+
+		if (world_state == 0 && !obj_detected){
+			centroidCtr++;
+		} else if (world_state != 0 ){
+			centroidCtr = 0;
+		} else {
+			centroidCtr=0;
+		}
+
+		if (!state_lockout && prev_state == 0 && centroidCtr>50) { //Each ctr is 100ms
+			world_state = 5;
+			centroidCtr = 0;
+		} /*else if (!state_lockout && prev_state == 0 && matchImage(rgbTransport.getImg())){
+			world_state = 4;
+		}*/
+
+
+		if (prev_state != world_state && world_state != 0){
 			state_timer.start();
 			state_lockout=true;
 			set_start_time();
 			ROS_INFO("Starting lockout");
+			ROS_INFO("State = %d", world_state);
 		}
+		if (prev_state != world_state && world_state == 0) ROS_INFO("State = 0");
 		prev_state=world_state;
 
-		
-
 		if(world_state == 0){
-			//fill with your code
-			//vel_pub.publish(vel);
-			//ranOnce=false;
-			//vel_pub.publish(follow_cmd);
-			sadness();
-			vel.angular.z = angular;
-			vel.linear.x = linear;
-			vel_pub.publish(vel);
+			//robot follows person
 
+			ranOnce=false;
+			vel_pub.publish(follow_cmd);
 
 		}else if(world_state == 1){
 			/*
+			nothing happens here can delete
 			...
 			...
 			*/
 			vel.angular.z = angular;
 			vel.linear.x = linear;
 			vel_pub.publish(vel);
-		} else if (world_state == 4){
+
+		}else if (world_state == 4){
+			//cat sees picture of tuna and gets excited
 			if (!ranOnce) {
 				sc.playWave(path_to_sounds + "excited.wav");
 				ranOnce=true;
@@ -167,30 +227,68 @@ int main(int argc, char **argv)
 			vel.angular.z = angular;
 			vel.linear.x = linear;
 			vel_pub.publish(vel);
-		} else if (world_state == 5) {
-			sadness();
-			vel.angular.z = angular;
-			vel.linear.x = linear;
-			vel_pub.publish(vel);
+		
+		}else if(world_state == 5){
+			//cat has lost track of person and gets scared
 			if (!ranOnce) {
-				sc.playWave(path_to_sounds + "sadCat.wav");
+				sc.playWave(path_to_sounds + "fear.wav");
 				ranOnce=true;
 			}
-		} else if (world_state == 6) {
+			/*if (get_time_elapsed()>=9000 && get_time_elapsed()<9100){
+			}*/
 			fear();
 			vel.angular.z = angular;
 			vel.linear.x = linear;
 			vel_pub.publish(vel);
+		
+		}else if(world_state == 6){
+			//left bumper has been kicked and cat gets surprised
 			if (!ranOnce) {
-				sc.playWave(path_to_sounds + "teethChatter.wav");
+				sc.playWave(path_to_sounds + "surprise.wav"); // default sounds
 				ranOnce=true;
 			}
+			leftBumper();
+			//imshow_emotion(img_test);
+			vel.angular.z = angular;
+			vel.linear.x = linear;
+			vel_pub.publish(vel);
+
+		
+		}else if(world_state == 7){
+			//center bumper is pressed due to obstacle and cat cannot get to person and rages
+			sc.playWave(path_to_sounds + "rage.wav");
+			if (!ranOnce) {
+				//sc.playWave(path_to_sounds + "rage.wav");
+				ranOnce=true;
+			}
+			rage();
+			vel.angular.z = angular;
+			vel.linear.x = linear;
+			vel_pub.publish(vel);
+
+		}else if(world_state == 8){ 
+			//right bumper has been kicked and cat gets surprised
+			sc.playWave(path_to_sounds + "surprise.wav");
+			if (!ranOnce) {
+				//sc.playWave(path_to_sounds + "surprise.wav");
+				ranOnce=true;
+			}
+			rightBumper();
+			//Mat img_test=imread(ros::package::getPath("mie443_contest3")+"/imgs/meow_surprised_yoga.jpg"); //compiles but does not work
+			//imshow_emotion(img_test); //compiles but does not work 
+			vel.angular.z = angular;
+			vel.linear.x = linear;
+			vel_pub.publish(vel);
+
 		}
+
 		secondsElapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now()-start).count();
 		loop_rate.sleep();
 	}
 	return 0;
 }
+
+
 void excited(){
 	linear = 0.5;
 	angular = 1;
@@ -222,89 +320,269 @@ bool matchImage(Mat inp_frame){
 	else return false;
 }
 
-void sadness() {
+void set_start_time(){
+	state_start = std::chrono::system_clock::now();
+	return;
+}
+uint64_t get_time_elapsed(){
+	uint64_t mil_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-state_start).count();
+	return mil_elapsed;
+}
+void rightBumper() {
+    //the rightBumper function turns the robot right by 90 degrees if the right bumper is hit
+    //make a surprised cat sound 
+    //Return to its original position 
+    //returns state 0 to move forward
+    if(get_time_elapsed()<=1500){
+		ROS_INFO("in right bumper");
+        angular=-1.4;
+        linear=0;
+		Mat surpriseRight=imread(ros::package::getPath("mie443_contest3")+"/imgs/surprisedCat.jpeg"); //compiles but does not work
+		imshow_emotion(surpriseRight); //compiles but does not work 
+        return;
+    } 
+    /*if(get_time_elapsed()>3000 && get_time_elapsed()<6000 ){
+        angular=0.8;
+        linear=0;
+        return;
+
+    }*/else {
+		cv::destroyAllWindows();
+        world_state=0;
+        return;
+    }
+}
+
+//BUMPER  
+void leftBumper() {
+    //the rightBumper function turns the robot left by 90 degrees if the right bumper is hit
+    //make a surprised cat sound 
+    //Return to its original position 
+    //returns state 0 to move forward
+    if(get_time_elapsed()<=1500){
+        angular=1.4;
+        linear=0;
+		Mat surpriseLeft=imread(ros::package::getPath("mie443_contest3")+"/imgs/surprisedCat.jpeg"); //compiles but does not work
+		imshow_emotion(surpriseLeft);
+        return;
+    }
+	/*if(get_time_elapsed()>3000 && get_time_elapsed()<=6000 ){
+        // Mat img_test_sur=imread(ros::package::getPath("mie443_contest3")+"/imgs/meow_surprised_yoga.jpg");
+		// imshow_emotion(img_test_sur);
+		angular=0.0;
+        linear=0;
+        return;
+	}
+    if(get_time_elapsed()>6000 && get_time_elapsed()<9000 ){
+        angular=-0.8;
+        linear=0;
+        return;
+    }*/else {
+		cv::destroyAllWindows();
+        world_state=0;
+        return; 
+    }
+}
+
+void rage() {
 	
 	//function definition for when bot cannot reach user, triggered by obstacle preventing bot from following
-	/* when obstacle is encountered 
-	back up 
-	move forward to obstacle 
-	pause 
-	sad cat music
-	sad cat picture on screen*/
+	
 
-	ROS_INFO("in the sadness emotion");
+	ROS_INFO("in the rage emotion");
+	// reverse for 2 seconds
 
-	uint64_t  timer = get_time_elapsed();
-
-	if (timer > 0 && timer <= 2000){
-		linear  = -0.4; // 0.4 m/s for 2 seconds  = 0.8 meters reversed
+	if (get_time_elapsed() >= 0 && get_time_elapsed() <= 2500){
+		linear  = -0.25; 
 		angular = 0.0;
+		return;
 
-	} else if (timer > 2000 && timer <= 4000){ // moving forwards back to obstacle
+		// move forward for 2 seconds
+	}
+	
+	if (get_time_elapsed() > 2500 && get_time_elapsed() <= 4500){ // moving forwards back to obstacle
+		linear = 0.25;
+		angular = 0.0;		
+		return;
+
+	// reverse  faster to build frustration
+	}
+	
+	if (get_time_elapsed() > 4500 && get_time_elapsed() <= 6500){
+		linear  = -0.3; 
+		angular = 0.0;
+		//ros::Duration(500).sleep();
+		return;
+
+	}
+	
+	if (get_time_elapsed()> 6500 && get_time_elapsed() <= 7000){
+		linear = 0.0;
+		angular = 0.0;
+		return;
+
+		// move forward for 2 seconds
+	}
+	
+	if (get_time_elapsed() > 7000 && get_time_elapsed() <= 8900){ // moving forwards back to obstacle
 		linear = 0.4;
 		angular = 0.0;
+		return;
+
 	}
-	linear = 0;
-	angular = 0;
-	ros::Duration(1500).sleep(); //  wait for 1.5 seconds 
 	
-	return; // end function 
+	if (get_time_elapsed() > 8900 && get_time_elapsed() <=10900) {
+		// scratching image
+		Mat rageOne=imread(ros::package::getPath("mie443_contest3")+"/imgs/scratchCat.jpeg");
+		imshow_emotion(rageOne);
+
+		linear = 0;
+		angular = 0;
+		return;
+
+	}
+	
+	if (get_time_elapsed() > 10900 && get_time_elapsed() <= 30000){
+		// rage image #2
+		//cv::destroyAllWindows();
+		Mat rageTwo=imread(ros::package::getPath("mie443_contest3")+"/imgs/catRage.jpeg");
+		imshow_emotion(rageTwo);
+
+		linear = 0.0;
+		angular = 1.7; 
+		return;
+	}
+
+	else {
+		linear = 0;
+		angular = 0;
+		cv::destroyAllWindows();
+		world_state=0;
+		return; // end function
+	} 
 }
+
 
 void fear() {
 	// this emotional state is triggered when the robot loses track of the person it's following
 	//normal picture up;
 	
-	int time = get_time_elapsed();
+	//ROS_INFO("in the fear emotion");
+
+	//int time = get_time_elapsed();
+
+	//put image up
+	Mat fear=imread(ros::package::getPath("mie443_contest3")+"/imgs/catFear.jpeg");
+	imshow_emotion(fear);
 
 	//look left
-	if (0 <= time < 2000){
-		angular = 0.785;
+	if(get_time_elapsed()<=3500){
+        angular=0.8;
         linear=0;
-		//ros::Duration(500).sleep();
-    } else if (2000 <= time < 6000){
-		//look right
-		angular= -0.785;
-		linear=0;
-		//ros::Duration(500).sleep();
-	} else if (6000 <= time < 8000) {
-		angular = 0.785;
-		linear = 0;
-		//ros::Duration(500).sleep();
-	} else if (8000 <= time < 13000) {
-		//after looking around the robot starts shaking
-		int shakeCount = 0;
-
-		if (shakeCount<5) {
-		//set velocity in one direction for 0.5 seconds
-		angular = 1.0;
-		linear = 0.5;
-		ros::Duration(500).sleep();
-
-		//set velocity in other direction for 0.5 seconds to make turtlebot shake
-		angular = -1.0;
-		linear = -0.5;
-		ros::Duration(500).sleep();
-
-		//increment shake counter to control how many times the robot shakes
-		shakeCount++;
-		} else if (shakeCount == 5) {
-			//stop the turtlebot from shaking
-			angular = 0;
-			linear = 0;
-		}
+        return;
+    } 
+	//look right
+	if(get_time_elapsed()>3500 && get_time_elapsed()<=9000){
+        angular=-0.8;
+        linear=0;
+        return;
 	}
-
-	//emotion movement reaction complete
-	return;
-}
-
-void set_start_time(){
-	state_start = std::chrono::system_clock::now();
-	return;
-}
-
-uint64_t get_time_elapsed(){
-	uint64_t mil_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-state_start).count();
-	return mil_elapsed;
+	//turn back to center
+	if(get_time_elapsed()>9000 && get_time_elapsed()<=12000){
+        angular=0.8;
+        linear=0;
+        return;
+    }
+	//put the scared image up
+	if(get_time_elapsed()>12000 && get_time_elapsed()<=13000){
+		angular = 0;
+		linear = 0;
+		return;
+	}
+	if (get_time_elapsed()==13000) ROS_INFO("Start shaking");
+	if (get_time_elapsed() > 13000 && get_time_elapsed()%1000<500){
+		angular = 0.3;
+		linear = 0.1;
+		return;
+	}
+	if (get_time_elapsed() > 13000 && get_time_elapsed()%1000>=500){
+		angular = -0.3;
+		linear = -0.1;
+		return;
+	}
+	//after looking around the robot starts shaking and it shakes back and forth five times
+	// if (get_time_elapsed() > 13000 && get_time_elapsed() <= 13500) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = 1.0;
+	// 	linear = 0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 13500 && get_time_elapsed() <= 14000) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = -1.0;
+	// 	linear = -0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 14000 && get_time_elapsed() <= 14500) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = 1.0;
+	// 	linear = 0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 14500 && get_time_elapsed() <= 15000) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = -1.0;
+	// 	linear = -0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 15000 && get_time_elapsed() <= 15500) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = 1.0;
+	// 	linear = 0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 15500 && get_time_elapsed() <= 16000) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = -1.0;
+	// 	linear = -0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 16000 && get_time_elapsed() <= 16500) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = 1.0;
+	// 	linear = 0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 16500 && get_time_elapsed() <= 17000) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = -1.0;
+	// 	linear = -0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 17000 && get_time_elapsed() <= 17500) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = 1.0;
+	// 	linear = 0.5;
+	// 	return;
+	// }
+	// if (get_time_elapsed() > 17500 && get_time_elapsed() <= 18000) {
+	// 	//after looking around the robot starts shaking
+	// 	ROS_INFO("should start shaking now");
+	// 	angular = -1.0;
+	// 	linear = -0.5;
+	// 	return;
+	// }
+cv::destroyAllWindows();
+world_state=0;
+return;
+	
 }
