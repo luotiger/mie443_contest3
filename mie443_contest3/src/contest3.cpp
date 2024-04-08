@@ -360,7 +360,7 @@ void rightBumper() {
 		Mat surpriseRight=imread(ros::package::getPath("mie443_contest3")+"/imgs/surprisedCat.jpeg"); //compiles but does not work
 		imshow_emotion(surpriseRight); 
         angular=-1.4;
-        linear=0; 
+        linear=-0.2; 
         return;
     }
 	if(get_time_elapsed() > 1500 && get_time_elapsed() <= 4000) {
@@ -375,6 +375,7 @@ void rightBumper() {
     }*/else {
 		cv::destroyAllWindows();
         world_state=0;
+		state_lockout = false;
         return;
     }
 }
@@ -389,7 +390,7 @@ void leftBumper() {
        	Mat surpriseLeft=imread(ros::package::getPath("mie443_contest3")+"/imgs/surprisedCat.jpeg"); //compiles but does not work
 		imshow_emotion(surpriseLeft);
 	    angular=1.4;
-        linear=0;
+        linear=-0.2;
         return;
     }
 	if(get_time_elapsed() > 1500 && get_time_elapsed() <= 4000) {
@@ -410,6 +411,7 @@ void leftBumper() {
     }*/else {
 		cv::destroyAllWindows();
         world_state=0;
+		state_lockout = false;
         return; 
     }
 }
