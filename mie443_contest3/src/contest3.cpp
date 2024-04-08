@@ -168,7 +168,8 @@ int main(int argc, char **argv)
 
 	int emotionCtr = 0;
 	int centroidCtr = 0;
-	world_state = 0;
+	world_state = 8;
+	state_lockout = true;
 
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
@@ -240,8 +241,11 @@ int main(int argc, char **argv)
 		}else if(world_state == 5){
 			//cat has lost track of person and gets scared
 			if (!ranOnce) {
-				sc.playWave(path_to_sounds + "fear.wav");
+				sc.playWave(path_to_sounds + "fear1.wav");
 				ranOnce=true;
+			}
+			if (get_time_elapsed()>10000 && get_time_elapsed()<10200){
+				sc.playWave(path_to_sounds + "fear2.wav");
 			}
 		
 			fear();
@@ -264,11 +268,11 @@ int main(int argc, char **argv)
 		}else if(world_state == 7){
 			//center bumper is pressed due to obstacle and cat cannot get to person and rages
 			if (!ranOnce) {
-				sc.playWave(path_to_sounds + "rage.wav");
+				sc.playWave(path_to_sounds + "rage1.wav");
 				ranOnce=true;
 			}
 			if (get_time_elapsed()>10000 && get_time_elapsed()<10200) {
-				sc.playWave(path_to_sounds + "rage.wav");
+				sc.playWave(path_to_sounds + "rage2.wav");
 			}
 			rage();
 			vel.angular.z = angular;
@@ -534,9 +538,10 @@ void fear() {
 		linear = -0.1;
 		return;
 	}
-	
-cv::destroyAllWindows();
-world_state=0;
-return;
+	if (get_time_elapsed()>20000){
+		cv::destroyAllWindows();
+		world_state=0;
+		return;
+	}
 	
 }
