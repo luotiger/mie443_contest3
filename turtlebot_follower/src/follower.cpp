@@ -31,6 +31,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <nodelet/nodelet.h>
 #include <geometry_msgs/Twist.h>
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/Image.h>
 #include <visualization_msgs/Marker.h>
 #include <turtlebot_msgs/SetFollowState.h>
@@ -40,6 +41,7 @@
 
 #include <depth_image_proc/depth_traits.h>
 
+//ros::Publisher detectedpub;
 
 namespace turtlebot_follower
 {
@@ -110,6 +112,8 @@ private:
     cmdpub_ = private_nh.advertise<geometry_msgs::Twist> ("cmd_vel", 1);
     markerpub_ = private_nh.advertise<visualization_msgs::Marker>("marker",1);
     bboxpub_ = private_nh.advertise<visualization_msgs::Marker>("bbox",1);
+    detectedpub = nh.advertise<std_msgs::Bool> ("/centroid_bool",1);
+
     sub_= nh.subscribe<sensor_msgs::Image>("depth/image_rect", 1, &TurtlebotFollower::imagecb, this);
 
     switch_srv_ = private_nh.advertiseService("change_state", &TurtlebotFollower::changeModeSrvCb, this);
@@ -165,6 +169,8 @@ private:
     //Number of points observed
     unsigned int n = 0;
 
+    std_msgs::Bool centroid_found;
+
     //Iterate through all the points in the region and find the average of the position
     const float* depth_row = reinterpret_cast<const float*>(&depth_msg->data[0]);
     int row_step = depth_msg->step / sizeof(float);
@@ -198,6 +204,8 @@ private:
         if (enabled_)
         {
           cmdpub_.publish(geometry_msgs::TwistPtr(new geometry_msgs::Twist()));
+          centroid_found.data=false;
+          detectedpub.publish(centroid_found);
         }
         return;
       }
@@ -211,6 +219,8 @@ private:
         cmd->linear.x = (z - goal_z_) * z_scale_;
         cmd->angular.z = -x * x_scale_;
         cmdpub_.publish(cmd);
+        centroid_found.data=true;
+        detectedpub.publish(centroid_found);
       }
     }
     else
@@ -221,6 +231,8 @@ private:
       if (enabled_)
       {
         cmdpub_.publish(geometry_msgs::TwistPtr(new geometry_msgs::Twist()));
+        centroid_found.data=false;
+        detectedpub.publish(centroid_found);
       }
     }
 
@@ -312,6 +324,7 @@ private:
   ros::Publisher cmdpub_;
   ros::Publisher markerpub_;
   ros::Publisher bboxpub_;
+  ros::Publisher detectedpub;
 };
 
 PLUGINLIB_DECLARE_CLASS(turtlebot_follower, TurtlebotFollower, turtlebot_follower::TurtlebotFollower, nodelet::Nodelet);
