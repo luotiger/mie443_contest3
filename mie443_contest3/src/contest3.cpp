@@ -456,14 +456,14 @@ void rage() {
 		// move forward for 2 seconds
 	}
 	
-	if (get_time_elapsed() > 7000 && get_time_elapsed() <= 8700){ // moving forwards back to obstacle
+	if (get_time_elapsed() > 7000 && get_time_elapsed() <= 8500){ // moving forwards back to obstacle
 		linear = 0.4;
 		angular = 0.0;
 		return;
 
 	}
 	
-	if (get_time_elapsed() > 8700 && get_time_elapsed() <=10700) {
+	if (get_time_elapsed() > 8500 && get_time_elapsed() <=10700) {
 		// scratching image
 		Mat rageOne=imread(ros::package::getPath("mie443_contest3")+"/imgs/scratchCat.jpeg");
 		imshow_emotion(rageOne);
