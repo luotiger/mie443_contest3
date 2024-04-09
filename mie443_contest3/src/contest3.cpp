@@ -334,9 +334,9 @@ bool matchImage(Mat inp_frame){
     //ROS_INFO("Good matches: %lu", good_matches.size());
 
 	Mat img_matches;
-    drawMatches( img_ref, keypoints_ref, inp_frame, keypoints_img, good_matches,img_matches, Scalar::all(-1),
+    /* drawMatches( img_ref, keypoints_ref, inp_frame, keypoints_img, good_matches,img_matches, Scalar::all(-1),
     Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-	imshow_fast(img_matches);
+	imshow_fast(img_matches); */
 
 	if (good_matches.size()>80) return true;
 	else return false;
