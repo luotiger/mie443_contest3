@@ -64,26 +64,28 @@ void centroidCB(const std_msgs::Bool msg){
 }
 
 //BUMPER
-bool bumperPressed=false;
+bool bumperPressed[]={false, false, false};
 
 void bumperCB(const kobuki_msgs::BumperEvent::ConstPtr& msg){
     bumper[msg->bumper]=msg->state;// IDK IF THIS IS RIGHT 
     
     //if a bumper is pressed the robot enters a corresponding state and function to react
     if (bumper[0]==kobuki_msgs::BumperEvent::PRESSED && bumper[1]==kobuki_msgs::BumperEvent::RELEASED) {
-        world_state = 6;
+        //world_state = 6;
         ROS_INFO("Left Bumper Pressed");
-        bumperPressed=true;
+        bumperPressed[0]=true;
     } else if (bumper[1]==kobuki_msgs::BumperEvent::PRESSED) {
-        world_state = 7;
+        //world_state = 7;
         ROS_INFO("Middle Bumper Pressed");
-        bumperPressed=true;
+        bumperPressed[1]=true;
     } else if (bumper[2]==kobuki_msgs::BumperEvent::PRESSED && bumper[1]==kobuki_msgs::BumperEvent::RELEASED) {
-        world_state = 8;
+        //world_state = 8;
         ROS_INFO("Right Bumper Pressed");
-        bumperPressed=true;
+        bumperPressed[2]=true;
     } else {
-        bumperPressed=false;
+        bumperPressed[0]=false;
+		bumperPressed[1]=false;
+		bumperPressed[2]=false;
     }
 }
 
@@ -185,15 +187,23 @@ int main(int argc, char **argv)
 			centroidCtr=0;
 		}
 
+		//Need to reset bumperPressed
+		//State evaluation
 		if (!state_lockout && prev_state == 0 && centroidCtr>50) { //Each ctr is 100ms
 			world_state = 5;
 			centroidCtr = 0;
 		} else if (!state_lockout && prev_state == 0 && get_time_elapsed()%500 < 100 && 
 		matchImage(rgbTransport.getImg())){
 			world_state = 4;
-		} 
+		} else if (!state_lockout && prev_state == 0 && bumperPressed[0]){
+			world_state = 6;
+		} else if (!state_lockout && prev_state == 0 && bumperPressed[1]){
+			world_state = 7;
+		} else if (!state_lockout && prev_state == 0 && bumperPressed[2]){
+			world_state = 8;
+		}
 
-
+		//State execution
 		if (prev_state != world_state && world_state != 0){
 			state_timer.start();
 			state_lockout=true;
