@@ -72,15 +72,15 @@ void bumperCB(const kobuki_msgs::BumperEvent::ConstPtr& msg){
     //if a bumper is pressed the robot enters a corresponding state and function to react
     if (bumper[0]==kobuki_msgs::BumperEvent::PRESSED && bumper[1]==kobuki_msgs::BumperEvent::RELEASED) {
         //world_state = 6;
-        ROS_INFO("Left Bumper Pressed");
+        //ROS_INFO("Left Bumper Pressed");
         bumperPressed[0]=true;
     } else if (bumper[1]==kobuki_msgs::BumperEvent::PRESSED) {
         //world_state = 7;
-        ROS_INFO("Middle Bumper Pressed");
+        //ROS_INFO("Middle Bumper Pressed");
         bumperPressed[1]=true;
     } else if (bumper[2]==kobuki_msgs::BumperEvent::PRESSED && bumper[1]==kobuki_msgs::BumperEvent::RELEASED) {
         //world_state = 8;
-        ROS_INFO("Right Bumper Pressed");
+        //ROS_INFO("Right Bumper Pressed");
         bumperPressed[2]=true;
     } else {
         bumperPressed[0]=false;
@@ -126,7 +126,7 @@ int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "image_listener");
 	ros::NodeHandle nh;
-	state_timer = nh.createTimer(ros::Duration(30.0), timerCB);
+	state_timer = nh.createTimer(ros::Duration(20.0), timerCB);
 	state_timer.stop();
 	sound_play::SoundClient sc;
 	string path_to_sounds = ros::package::getPath("mie443_contest3") + "/sounds/";
@@ -170,24 +170,33 @@ int main(int argc, char **argv)
 
 	int emotionCtr = 0;
 	int centroidCtr = 0;
-	// world_state = 8;
-	// state_lockout = true;
+	//world_state = 8;
+	//state_lockout = true;
+	//bumperPressed[0]=true;
 
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
 		//State evaluation, put the most important states first! timerCB will automatically return to state 0 and reset state_lockout
 		//ROS_INFO("Time elapsed: %" PRIu64 "\n", get_time_elapsed());
 		
-		if (world_state == 0 && !obj_detected){
+		if (!state_lockout && world_state == 0 && !obj_detected){
 			centroidCtr++;
 		} else if (world_state != 0 || obj_detected){
 			centroidCtr = 0;
 		} else {
 			centroidCtr=0;
 		}
-
+		if (bumperPressed[0]){
+		 	ROS_INFO("Left");
+		}
+		if(bumperPressed[1]){
+			ROS_INFO("Middle");
+		}
+		if (bumperPressed[2]){
+			ROS_INFO("Right");
+		}
 		//State evaluation
-		if (!state_lockout && prev_state == 0 && centroidCtr>50) { //Each ctr is 100ms
+		if (!state_lockout && prev_state == 0 && centroidCtr>30) { //Each ctr is 100ms
 			world_state = 5;
 			centroidCtr = 0;
 		} else if (!state_lockout && prev_state == 0 && bumperPressed[0]){
@@ -217,7 +226,6 @@ int main(int argc, char **argv)
 			//display neutral emotion image
 			Mat neutral=imread(ros::package::getPath("mie443_contest3")+"/imgs/neutralCat.jpeg"); 
 			imshow_emotion(neutral); 
-			state_lockout = false;
 			bumperPressed[0]=false;
 			bumperPressed[1]=false;
 			bumperPressed[2]=false;
@@ -488,7 +496,7 @@ void rage() {
 
 	}
 	
-	if (get_time_elapsed() > 10700 && get_time_elapsed() <= 30000){
+	if (get_time_elapsed() > 10700 && get_time_elapsed() <= 20000){
 		// rage image #2
 		//cv::destroyAllWindows();
 		Mat rageTwo=imread(ros::package::getPath("mie443_contest3")+"/imgs/catRage.jpeg");
