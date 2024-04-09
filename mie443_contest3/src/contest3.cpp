@@ -170,38 +170,35 @@ int main(int argc, char **argv)
 
 	int emotionCtr = 0;
 	int centroidCtr = 0;
-	world_state = 8;
-	state_lockout = true;
+	// world_state = 8;
+	// state_lockout = true;
 
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
 		//State evaluation, put the most important states first! timerCB will automatically return to state 0 and reset state_lockout
 		//ROS_INFO("Time elapsed: %" PRIu64 "\n", get_time_elapsed());
 		
-
 		if (world_state == 0 && !obj_detected){
 			centroidCtr++;
-		} else if (world_state != 0 ){
+		} else if (world_state != 0 || obj_detected){
 			centroidCtr = 0;
 		} else {
 			centroidCtr=0;
 		}
 
-		//Need to reset bumperPressed
 		//State evaluation
 		if (!state_lockout && prev_state == 0 && centroidCtr>50) { //Each ctr is 100ms
 			world_state = 5;
 			centroidCtr = 0;
-		} else if (!state_lockout && prev_state == 0 && get_time_elapsed()%500 < 100 && 
-		matchImage(rgbTransport.getImg())){
-			world_state = 4;
 		} else if (!state_lockout && prev_state == 0 && bumperPressed[0]){
 			world_state = 6;
 		} else if (!state_lockout && prev_state == 0 && bumperPressed[1]){
 			world_state = 7;
 		} else if (!state_lockout && prev_state == 0 && bumperPressed[2]){
 			world_state = 8;
-		}
+		} else if (!state_lockout && prev_state == 0 && get_time_elapsed()%500 < 100 && matchImage(rgbTransport.getImg())){
+			world_state = 4;
+		} 
 
 		//State execution
 		if (prev_state != world_state && world_state != 0){
@@ -220,7 +217,10 @@ int main(int argc, char **argv)
 			//display neutral emotion image
 			Mat neutral=imread(ros::package::getPath("mie443_contest3")+"/imgs/neutralCat.jpeg"); 
 			imshow_emotion(neutral); 
-
+			state_lockout = false;
+			bumperPressed[0]=false;
+			bumperPressed[1]=false;
+			bumperPressed[2]=false;
 			ranOnce=false;
 			vel_pub.publish(follow_cmd);
 
@@ -320,9 +320,9 @@ void excited(){
 		return;
 	}
 
-cv::destroyAllWindows();
-world_state=0;
-return;
+	cv::destroyAllWindows();
+	world_state=0;
+	return;
 
 }
 
@@ -385,7 +385,9 @@ void rightBumper() {
     }*/else {
 		cv::destroyAllWindows();
         world_state=0;
-		state_lockout = false;
+		bumperPressed[0]=false;
+		bumperPressed[1]=false;
+		bumperPressed[2]=false;
         return;
     }
 }
@@ -421,7 +423,9 @@ void leftBumper() {
     }*/else {
 		cv::destroyAllWindows();
         world_state=0;
-		state_lockout = false;
+		bumperPressed[0]=false;
+		bumperPressed[1]=false;
+		bumperPressed[2]=false;
         return; 
     }
 }
@@ -500,6 +504,9 @@ void rage() {
 		angular = 0;
 		cv::destroyAllWindows();
 		world_state=0;
+		bumperPressed[0]=false;
+		bumperPressed[1]=false;
+		bumperPressed[2]=false;
 		return; // end function
 	} 
 }
