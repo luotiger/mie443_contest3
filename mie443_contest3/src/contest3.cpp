@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 	int centroidCtr = 0;
 	//world_state = 8;
 	//state_lockout = true;
-	//bumperPressed[0]=true;
+	//bumperPressed[1]=true;
 
 	while(ros::ok() && secondsElapsed <= 480){		
 		ros::spinOnce();
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 			world_state = 7;
 		} else if (!state_lockout && prev_state == 0 && bumperPressed[2]){
 			world_state = 8;
-		} else if (!state_lockout && prev_state == 0 && get_time_elapsed()%500 < 100 && matchImage(rgbTransport.getImg())){
+		} else if (!state_lockout && prev_state == 0 && get_time_elapsed()%800 < 100 && matchImage(rgbTransport.getImg())){
 			world_state = 4;
 		} 
 
